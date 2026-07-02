@@ -3,18 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+  Dimensions, FlatList, Platform, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useState } from 'react';
-import { donghua, donghub, drachin, dramabox, winbu } from '@/services/api';
+import { donghua, donghub, winbu } from '@/services/api';
 import { AnimeCard } from '@/components/AnimeCard';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { ContentItem } from '@/types/api';
@@ -23,32 +16,30 @@ const { width: W } = Dimensions.get('window');
 const CARD_W = (W - 16 * 2 - 10) / 2;
 const CARD_H = CARD_W * 1.4;
 
-type SourceKey = 'donghua' | 'donghub' | 'drachin' | 'dramabox' | 'winbu';
+type SourceKey = 'donghua' | 'donghub' | 'winbu';
 type Category = 'Terbaru' | 'Ongoing' | 'Completed' | 'Populer';
 
 const SOURCES: { key: SourceKey; label: string; icon: string }[] = [
   { key: 'donghua', label: 'Donghua', icon: '🐉' },
   { key: 'donghub', label: 'Donghub', icon: '🐼' },
-  { key: 'drachin', label: 'Drachin', icon: '🎭' },
-  { key: 'dramabox', label: 'Dramabox', icon: '📺' },
   { key: 'winbu', label: 'Winbu', icon: '⚡' },
 ];
 
 const CATEGORIES: Category[] = ['Terbaru', 'Ongoing', 'Completed', 'Populer'];
 
-function normalize(items: any[], source: ContentItem['source'], contentType: ContentItem['contentType']): ContentItem[] {
+function norm(items: any[], source: ContentItem['source'], ct: ContentItem['contentType'], directToEpisode = false): ContentItem[] {
   if (!Array.isArray(items)) return [];
   return items
     .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
     .map((i: any) => ({
-      id: i.animeId ?? i.id ?? i.slug ?? i.bookId ?? i.title,
-      title: i.title,
-      poster: i.poster ?? i.image ?? i.thumbnail ?? '',
+      id: i.animeId ?? i.id ?? i.slug ?? i.title,
+      title: String(i.title ?? '').split('\t')[0].trim(),
+      poster: (i.poster ?? i.image ?? i.thumbnail ?? '').split('\t')[0].trim(),
       source,
       slug: i.animeId ?? i.id ?? i.slug ?? '',
-      contentType,
+      contentType: ct,
       episodes: i.episodes ?? i.episode ?? undefined,
-      bookId: i.bookId,
+      directToEpisode,
     }));
 }
 
@@ -63,24 +54,28 @@ function useDonghuaData(source: SourceKey, category: Category) {
         else raw = await donghua.latest();
       } else if (source === 'donghub') {
         if (category === 'Populer') raw = await donghub.popular();
-        else raw = await donghub.latest();
-      } else if (source === 'drachin') {
-        if (category === 'Populer') raw = await drachin.popular();
-        else raw = await drachin.latest();
-      } else if (source === 'dramabox') {
-        if (category === 'Populer') raw = await dramabox.trending();
-        else raw = await dramabox.latest();
+        else raw = await donghub.home();
       } else if (source === 'winbu') {
         raw = await winbu.home();
       }
-      const list =
-        raw?.data?.animeList ??
-        raw?.data?.items ??
-        raw?.data?.dramas ??
-        (Array.isArray(raw?.data) ? raw.data : []);
-      const contentType: ContentItem['contentType'] =
-        source === 'drachin' || source === 'dramabox' ? 'drama' : 'donghua';
-      return normalize(Array.isArray(list) ? list : [], source, contentType);
+
+      const d = raw?.data ?? raw;
+      let list: any[] = [];
+
+      if (source === 'donghua') {
+        // donghua latest: data.latest_donghua; ongoing/completed: data.animeList
+        list = d?.latest_donghua ?? d?.animeList ?? d?.ongoing ?? (Array.isArray(d) ? d : []);
+      } else if (source === 'donghub') {
+        // donghub home: data.latest[], data.popular[]
+        list = d?.latest ?? d?.popular ?? d?.slider ?? (Array.isArray(d) ? d : []);
+      } else if (source === 'winbu') {
+        // winbu: uses `id` and `image` (not animeId/poster)
+        list = d?.latest_anime ?? d?.top10_anime ?? (Array.isArray(d) ? d : []);
+      }
+
+      const isDirect = source === 'donghub'; // donghub items are episode-level
+      const ct: ContentItem['contentType'] = 'donghua';
+      return norm(list, source, ct, isDirect);
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -90,7 +85,6 @@ export default function DonghuaScreen() {
   const insets = useSafeAreaInsets();
   const [activeSource, setActiveSource] = useState<SourceKey>('donghua');
   const [activeCategory, setActiveCategory] = useState<Category>('Terbaru');
-
   const { data, isLoading } = useDonghuaData(activeSource, activeCategory);
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -98,7 +92,6 @@ export default function DonghuaScreen() {
     <View style={[styles.container, { paddingTop: topPad }]}>
       <Text style={styles.screenTitle}>🐉 Donghua & Drama</Text>
 
-      {/* Source Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsRow} contentContainerStyle={styles.tabsContent}>
         {SOURCES.map((s) => (
           <TouchableOpacity
@@ -113,7 +106,6 @@ export default function DonghuaScreen() {
         ))}
       </ScrollView>
 
-      {/* Category Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow} contentContainerStyle={styles.tabsContent}>
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -127,9 +119,7 @@ export default function DonghuaScreen() {
       </ScrollView>
 
       {isLoading ? (
-        <View style={styles.skeletonWrap}>
-          <SkeletonLoader count={6} width={CARD_W} height={CARD_H} />
-        </View>
+        <View style={styles.skeletonWrap}><SkeletonLoader count={6} width={CARD_W} height={CARD_H} /></View>
       ) : !data || data.length === 0 ? (
         <View style={styles.empty}>
           <Feather name="globe" size={40} color="#1F1F1F" />
@@ -152,33 +142,15 @@ export default function DonghuaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
-  screenTitle: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  screenTitle: { color: '#FFF', fontSize: 20, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 8 },
   tabsRow: { marginBottom: 4 },
   catRow: { marginBottom: 12 },
   tabsContent: { paddingHorizontal: 16, gap: 8 },
-  tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#1A1A1A',
-  },
+  tab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#1A1A1A' },
   tabActive: { backgroundColor: '#FF6D00' },
   tabText: { color: '#9CA3AF', fontSize: 12, fontWeight: '600' },
   tabTextActive: { color: '#FFF' },
-  catTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#1F1F1F',
-  },
+  catTab: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#1F1F1F' },
   catTabActive: { borderColor: '#FF6D00', backgroundColor: 'rgba(255,109,0,0.1)' },
   catText: { color: '#9CA3AF', fontSize: 12, fontWeight: '600' },
   catTextActive: { color: '#FF6D00' },

@@ -14,6 +14,20 @@ interface Props {
 
 export function AnimeCard({ item, width = SCREEN_W * 0.38, height = 200 }: Props) {
   const handlePress = () => {
+    if (item.directToEpisode) {
+      // Go straight to episode player (for episode-level sources)
+      router.push({
+        pathname: '/episode',
+        params: {
+          source: item.source,
+          slug: item.slug,
+          title: item.title,
+          animeName: item.title,
+          episodeIndex: '1',
+        },
+      });
+      return;
+    }
     const params: Record<string, string> = {
       source: item.source,
       slug: item.slug,
@@ -40,9 +54,9 @@ export function AnimeCard({ item, width = SCREEN_W * 0.38, height = 200 }: Props
         colors={['transparent', 'rgba(0,0,0,0.9)']}
         style={styles.gradient}
       />
-      <View style={styles.badge} >
+      <View style={styles.badge}>
         <Text style={[styles.badgeText, { backgroundColor: badgeColor }]}>
-          {SOURCE_LABELS[item.source]}
+          {(SOURCE_LABELS as Record<string, string>)[item.source] ?? item.source}
         </Text>
       </View>
       {item.episodes != null && (

@@ -17,8 +17,10 @@ export interface ContentItem {
   status?: string;
   score?: string;
   genres?: string[];
-  extraId?: string;  // kuramanime: numeric id
-  bookId?: string;   // dramabox: bookId
+  extraId?: string;
+  bookId?: string;
+  /** If true, tapping goes directly to the episode player screen (skip detail) */
+  directToEpisode?: boolean;
 }
 
 export interface FavoriteItem extends ContentItem {

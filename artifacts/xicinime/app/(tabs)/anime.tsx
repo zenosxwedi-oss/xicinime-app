@@ -3,20 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+  Dimensions, FlatList, Platform, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useState } from 'react';
 import {
   otakudesu, samehadaku, animasu, kusonime, anoboy,
-  oploverz, nimegami, alqanime, kuramanime, stream,
+  oploverz, nimegami, alqanime, animekuindo,
 } from '@/services/api';
 import { AnimeCard } from '@/components/AnimeCard';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
@@ -26,7 +19,9 @@ const { width: W } = Dimensions.get('window');
 const CARD_W = (W - 16 * 2 - 10) / 2;
 const CARD_H = CARD_W * 1.4;
 
-type SourceKey = 'otakudesu' | 'samehadaku' | 'animasu' | 'kusonime' | 'anoboy' | 'oploverz' | 'nimegami' | 'alqanime' | 'kuramanime' | 'stream';
+type SourceKey =
+  | 'otakudesu' | 'samehadaku' | 'animasu' | 'kusonime'
+  | 'anoboy' | 'oploverz' | 'nimegami' | 'alqanime' | 'animekuindo';
 type Category = 'Terbaru' | 'Ongoing' | 'Completed' | 'Movie' | 'Populer';
 
 const SOURCES: { key: SourceKey; label: string }[] = [
@@ -38,33 +33,65 @@ const SOURCES: { key: SourceKey; label: string }[] = [
   { key: 'oploverz', label: 'Oploverz' },
   { key: 'nimegami', label: 'Nimegami' },
   { key: 'alqanime', label: 'Alqanime' },
-  { key: 'kuramanime', label: 'Kuramanime' },
-  { key: 'stream', label: 'Stream' },
+  { key: 'animekuindo', label: 'Animekuindo' },
 ];
 
 const CATEGORIES: Category[] = ['Terbaru', 'Ongoing', 'Completed', 'Movie', 'Populer'];
 
-function normalize(items: any[], source: ContentItem['source'], contentType: ContentItem['contentType']): ContentItem[] {
+function norm(items: any[], source: ContentItem['source'], ct: ContentItem['contentType'], directToEpisode = false): ContentItem[] {
   if (!Array.isArray(items)) return [];
   return items
-    .filter((i: any) => i?.title && (i?.poster || i?.image))
+    .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
     .map((i: any) => ({
-      id: i.animeId ?? i.id ?? i.slug ?? i.animeSlug ?? i.title,
-      title: i.title,
-      poster: i.poster ?? i.image ?? i.thumbnail ?? '',
+      id: i.animeId ?? i.id ?? i.slug ?? i.title,
+      title: String(i.title ?? '').trim(),
+      poster: (i.poster ?? i.image ?? i.thumbnail ?? '').split('\t')[0].trim(),
       source,
-      slug: i.animeId ?? i.id ?? i.slug ?? i.animeSlug ?? '',
-      contentType,
+      slug: i.animeId ?? i.id ?? i.slug ?? '',
+      contentType: ct,
       episodes: i.episodes ?? i.episode ?? undefined,
-      extraId: i.animeId ?? i.id,
+      directToEpisode,
     }));
 }
+
+/** Extract the list array from any API response using source-specific field names */
+function extractList(raw: any, source: SourceKey): any[] {
+  if (!raw) return [];
+  const d = raw.data ?? raw;
+  switch (source) {
+    case 'otakudesu':
+      return d.animeList ?? d.ongoing?.animeList ?? d.completed?.animeList ?? [];
+    case 'samehadaku':
+      return d.animeList ?? [];
+    case 'animasu':
+      return d.animeList ?? d.ongoing ?? d.recent ?? d.results ?? (Array.isArray(d) ? d : []);
+    case 'kusonime':
+      return d.anime_list ?? d.animeList ?? (Array.isArray(d) ? d : []);
+    case 'anoboy':
+    case 'oploverz':
+    case 'nimegami':
+      return d.anime_list ?? d.animeList ?? (Array.isArray(d) ? d : []);
+    case 'alqanime':
+      return d.latest ?? d.ongoing ?? d.completed ?? d.movies ?? d.hot ?? d.animeList ?? [];
+    case 'animekuindo':
+      return Array.isArray(d) ? d : d.animeList ?? [];
+    default:
+      return d.animeList ?? d.anime_list ?? (Array.isArray(d) ? d : []);
+  }
+}
+
+// Episode-level sources — tapping goes directly to player
+// Only include sources that have a working episode fetch endpoint
+const EPISODE_SOURCES = new Set<SourceKey>(['anoboy', 'oploverz']);
 
 function useAnimeData(source: SourceKey, category: Category) {
   return useQuery({
     queryKey: ['anime-browse', source, category],
     queryFn: async (): Promise<ContentItem[]> => {
       let raw: any;
+      const isDirect = EPISODE_SOURCES.has(source);
+      const ct: ContentItem['contentType'] = category === 'Movie' ? 'movie' : 'anime';
+
       if (source === 'otakudesu') {
         if (category === 'Ongoing') raw = await otakudesu.ongoing();
         else if (category === 'Completed') raw = await otakudesu.complete();
@@ -74,7 +101,7 @@ function useAnimeData(source: SourceKey, category: Category) {
         else if (category === 'Completed') raw = await samehadaku.completed();
         else if (category === 'Movie') raw = await samehadaku.movies();
         else if (category === 'Populer') raw = await samehadaku.popular();
-        else raw = await samehadaku.recent();
+        else raw = await samehadaku.ongoing();
       } else if (source === 'animasu') {
         if (category === 'Ongoing') raw = await animasu.ongoing();
         else if (category === 'Completed') raw = await animasu.completed();
@@ -98,19 +125,11 @@ function useAnimeData(source: SourceKey, category: Category) {
         else if (category === 'Movie') raw = await alqanime.movie();
         else if (category === 'Populer') raw = await alqanime.popular();
         else raw = await alqanime.home();
-      } else if (source === 'kuramanime') {
-        raw = await kuramanime.animeList();
-      } else if (source === 'stream') {
-        if (category === 'Movie') raw = await stream.movies();
-        else raw = await stream.movies();
+      } else if (source === 'animekuindo') {
+        raw = await animekuindo.home();
       }
-      const list =
-        raw?.data?.animeList ??
-        raw?.data?.anime ??
-        raw?.data?.items ??
-        raw?.data ??
-        [];
-      return normalize(Array.isArray(list) ? list : [], source, category === 'Movie' ? 'movie' : 'anime');
+
+      return norm(extractList(raw, source), source, ct, isDirect);
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -120,7 +139,6 @@ export default function AnimeScreen() {
   const insets = useSafeAreaInsets();
   const [activeSource, setActiveSource] = useState<SourceKey>('otakudesu');
   const [activeCategory, setActiveCategory] = useState<Category>('Terbaru');
-
   const { data, isLoading } = useAnimeData(activeSource, activeCategory);
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
@@ -128,7 +146,6 @@ export default function AnimeScreen() {
     <View style={[styles.container, { paddingTop: topPad }]}>
       <Text style={styles.screenTitle}>🎌 Anime</Text>
 
-      {/* Source Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsRow} contentContainerStyle={styles.tabsContent}>
         {SOURCES.map((s) => (
           <TouchableOpacity
@@ -141,7 +158,6 @@ export default function AnimeScreen() {
         ))}
       </ScrollView>
 
-      {/* Category Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow} contentContainerStyle={styles.tabsContent}>
         {CATEGORIES.map((cat) => (
           <TouchableOpacity
@@ -155,9 +171,7 @@ export default function AnimeScreen() {
       </ScrollView>
 
       {isLoading ? (
-        <View style={styles.skeletonWrap}>
-          <SkeletonLoader count={6} width={CARD_W} height={CARD_H} />
-        </View>
+        <View style={styles.skeletonWrap}><SkeletonLoader count={6} width={CARD_W} height={CARD_H} /></View>
       ) : !data || data.length === 0 ? (
         <View style={styles.empty}>
           <Feather name="film" size={40} color="#1F1F1F" />
@@ -180,33 +194,15 @@ export default function AnimeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0A' },
-  screenTitle: {
-    color: '#FFF',
-    fontSize: 20,
-    fontWeight: '700',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
+  screenTitle: { color: '#FFF', fontSize: 20, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 8 },
   tabsRow: { marginBottom: 4 },
   catRow: { marginBottom: 12 },
   tabsContent: { paddingHorizontal: 16, gap: 8 },
-  tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#1A1A1A',
-  },
+  tab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#1A1A1A' },
   tabActive: { backgroundColor: '#8B00FF' },
   tabText: { color: '#9CA3AF', fontSize: 12, fontWeight: '600' },
   tabTextActive: { color: '#FFF' },
-  catTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#1F1F1F',
-  },
+  catTab: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#1A1A1A', borderWidth: 1, borderColor: '#1F1F1F' },
   catTabActive: { borderColor: '#FFB800', backgroundColor: 'rgba(255,184,0,0.1)' },
   catText: { color: '#9CA3AF', fontSize: 12, fontWeight: '600' },
   catTextActive: { color: '#FFB800' },
