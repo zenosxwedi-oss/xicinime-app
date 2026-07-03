@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Android APK (arm64)
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -48,100 +48,11 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Expo prebuild (generate native Android code)
+      - name: Expo prebuild
         working-directory: artifacts/xicinime
         run: pnpm exec expo prebuild --platform android --no-install --clean
         env:
           EXPO_NO_DOCTOR: 1
-
-      # ── Generate a local keystore for signing ──────────────────────────
-      - name: Generate release keystore
-        run: |
-          keytool -genkey -v \
-            -keystore /tmp/release.keystore \
-            -storepass xicinime123 \
-            -alias xicinime \
-            -keypass xicinime123 \
-            -keyalg RSA -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Xicinime,OU=App,O=Xicinime,L=ID,S=ID,C=ID" \
-            -noprompt
-
-      # ── Inject release signing + ABI split + size optimizations ───────
-      - name: Configure Gradle for slim release build
-        working-directory: artifacts/xicinime/android
-        run: |
-          # Write signing config into gradle.properties
-          cat >> gradle.properties << 'EOF'
-
-          RELEASE_STORE_FILE=/tmp/release.keystore
-          RELEASE_STORE_PASSWORD=xicinime123
-          RELEASE_KEY_ALIAS=xicinime
-          RELEASE_KEY_PASSWORD=xicinime123
-          EOF
-
-          # Patch app/build.gradle: add signing + splits + shrink
-          python3 - << 'PYEOF'
-          import re
-
-          with open("app/build.gradle", "r") as f:
-              content = f.read()
-
-          # 1. Add signingConfigs block before android { if not present
-          signing_block = """
-          signingConfigs {
-              release {
-                  storeFile file(RELEASE_STORE_FILE)
-                  storePassword RELEASE_STORE_PASSWORD
-                  keyAlias RELEASE_KEY_ALIAS
-                  keyPassword RELEASE_KEY_PASSWORD
-              }
-          }
-          """
-
-          # 2. Replace buildTypes.release to use signing + enable shrinking
-          content = re.sub(
-              r'(buildTypes\s*\{[^}]*?release\s*\{)',
-              r'\1\n            signingConfig signingConfigs.release\n            minifyEnabled true\n            shrinkResources true\n            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"\n',
-              content,
-              flags=re.DOTALL
-          )
-
-          # 3. Add ABI splits after defaultConfig block
-          splits_block = """
-              splits {
-                  abi {
-                      enable true
-                      reset()
-                      // arm64-v8a  = all modern Android phones (64-bit)
-                      // armeabi-v7a = older 32-bit phones (optional, adds ~15MB)
-                      include "arm64-v8a"
-                      universalApk false
-                  }
-              }
-          """
-          # Insert after the closing brace of defaultConfig
-          content = re.sub(
-              r'(defaultConfig\s*\{.*?\})',
-              r'\1\n' + splits_block,
-              content,
-              count=1,
-              flags=re.DOTALL
-          )
-
-          # 4. Add signingConfigs before android block
-          content = re.sub(
-              r'(android\s*\{)',
-              signing_block + r'\1',
-              content,
-              count=1
-          )
-
-          with open("app/build.gradle", "w") as f:
-              f.write(content)
-
-          print("✅ build.gradle patched")
-          PYEOF
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -157,28 +68,31 @@ jobs:
         working-directory: artifacts/xicinime/android
         run: chmod +x gradlew
 
-      - name: Build Release APK (arm64 only)
+      # ── arm64-v8a only via reactNativeArchitectures property ───────────
+      # This cuts the APK from ~180MB (4 ABIs) down to ~50MB (1 ABI)
+      - name: Build Debug APK — arm64 only
         working-directory: artifacts/xicinime/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          ./gradlew assembleDebug \
+            -PreactNativeArchitectures=arm64-v8a \
+            --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
 
-      - name: Find and rename APK
+      - name: Find APK and report size
         run: |
-          APK=$(find artifacts/xicinime/android/app/build/outputs/apk/release -name "*.apk" | head -1)
-          echo "Found APK: $APK"
+          APK=$(find artifacts/xicinime/android/app/build/outputs/apk/debug -name "*.apk" | head -1)
           SIZE=$(du -sh "$APK" | cut -f1)
-          echo "APK size: $SIZE"
-          cp "$APK" /tmp/xicinime-release-arm64.apk
-          echo "APK_PATH=/tmp/xicinime-release-arm64.apk" >> $GITHUB_ENV
+          echo "✅ APK: $APK — $SIZE"
+          cp "$APK" /tmp/xicinime-arm64.apk
           echo "APK_SIZE=$SIZE" >> $GITHUB_ENV
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: xicinime-release-arm64
-          path: /tmp/xicinime-release-arm64.apk
+          name: xicinime-arm64-apk
+          path: /tmp/xicinime-arm64.apk
           retention-days: 60
 
-      - name: Summary
-        run: echo "✅ APK release arm64 — ${{ env.APK_SIZE }}" >> $GITHUB_STEP_SUMMARY
+      - name: Job summary
+        run: echo "### ✅ APK arm64 selesai — ${{ env.APK_SIZE }}" >> $GITHUB_STEP_SUMMARY
