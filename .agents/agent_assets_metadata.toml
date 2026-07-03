@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "JFg07nJ7LTDhClJ06UN-0"
+uri = "file://downloads/xicinime-debug.apk"
+type = "unspecified"
+title = "Xicinime Debug APK (186 MB)"
