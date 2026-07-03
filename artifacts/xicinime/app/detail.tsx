@@ -52,15 +52,15 @@ function extractDetail(source: ApiSource, raw: any) {
   const d = raw.data ?? raw;
 
   // ── Genre extraction ─────────────────────────────────────────────────
-  // otakudesu / samehadaku use `genreList` (array of {genreId, name})
-  // donghua uses `genres` (array of strings)
-  // others may use either
+  // otakudesu / samehadaku: genreList[].title  (confirmed live, NOT .name)
+  // donghua: genres[] (array of strings)
+  // others: genre[] or genreList[]
   let genresRaw: any[] = [];
   if (Array.isArray(d.genreList) && d.genreList.length) genresRaw = d.genreList;
   else if (Array.isArray(d.genres) && d.genres.length) genresRaw = d.genres;
   else if (Array.isArray(d.genre) && d.genre.length) genresRaw = d.genre;
   const genres = genresRaw
-    .map((g: any) => (typeof g === 'string' ? g : g?.name ?? g?.genreName ?? ''))
+    .map((g: any) => (typeof g === 'string' ? g : g?.title ?? g?.name ?? g?.genreName ?? ''))
     .filter(Boolean);
 
   // ── Episode extraction ───────────────────────────────────────────────

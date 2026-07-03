@@ -44,7 +44,8 @@ function norm(items: any[], source: ContentItem['source'], ct: ContentItem['cont
     .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
     .map((i: any) => ({
       id: i.animeId ?? i.id ?? i.slug ?? i.title,
-      title: String(i.title ?? '').trim(),
+      // some sources (donghub) embed "Title\t\t\t\tTitle Episode N" — clean tabs
+      title: String(i.title ?? '').split('\t')[0].trim(),
       poster: (i.poster ?? i.image ?? i.thumbnail ?? '').split('\t')[0].trim(),
       source,
       slug: i.animeId ?? i.id ?? i.slug ?? '',

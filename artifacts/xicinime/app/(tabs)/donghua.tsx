@@ -30,7 +30,10 @@ const CATEGORIES: Category[] = ['Terbaru', 'Ongoing', 'Completed', 'Populer'];
 function norm(items: any[], source: ContentItem['source'], ct: ContentItem['contentType'], directToEpisode = false): ContentItem[] {
   if (!Array.isArray(items)) return [];
   return items
-    .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
+    .filter((i: any) => {
+      const title = String(i?.title ?? '').split('\t')[0].trim();
+      return title && (i?.poster || i?.image || i?.thumbnail);
+    })
     .map((i: any) => ({
       id: i.animeId ?? i.id ?? i.slug ?? i.title,
       title: String(i.title ?? '').split('\t')[0].trim(),

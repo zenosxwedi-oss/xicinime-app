@@ -19,7 +19,8 @@ function norm(
     .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
     .map((i: any) => ({
       id: i.animeId ?? i.id ?? i.slug ?? i.bookId ?? i.title,
-      title: String(i.title ?? '').trim(),
+      // donghub titles contain tabs like "Title\t\t\t\tTitle Episode N"
+      title: String(i.title ?? '').split('\t')[0].trim(),
       poster: (i.poster ?? i.image ?? i.thumbnail ?? '').split('\t')[0].trim(),
       source,
       slug: i.animeId ?? i.id ?? i.slug ?? '',
@@ -69,17 +70,23 @@ export default function HomeScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Extract with correct field names per API
-  const ongoingAnime = norm(home?.data?.ongoing?.animeList ?? [], 'otakudesu', 'anime');
-  const completedAnime = norm(home?.data?.completed?.animeList ?? [], 'otakudesu', 'anime');
-  const movieItems = norm(movies?.data?.animeList ?? [], 'samehadaku', 'movie');
-  const donghuaItems = norm(donghuaLatest?.data?.latest_donghua ?? [], 'donghua', 'donghua');
-  // Winbu: uses `id` as slug and `image` as poster
-  const winbuItems = norm(winbuHome?.data?.latest_anime ?? [], 'winbu', 'anime');
-  const animasuItems = norm(animasuHome?.data?.ongoing ?? animasuHome?.data?.recent ?? [], 'animasu', 'anime');
-  // Anoboy returns episode-level items → go straight to episode player
-  const anoboyItems = norm(anoboyHome?.data?.anime_list ?? [], 'anoboy', 'anime', true);
-  const donghubItems = norm(
+  // Extract with correct field names per API.
+  // IMPORTANT: some sources have NO "data" wrapper (anoboy, donghua, animasu, nimegami)
+  // while others do (otakudesu, samehadaku, winbu, donghub).
+  // Use ?? fallback: raw?.data?.field ?? raw?.field
+  const ongoingAnime  = norm(home?.data?.ongoing?.animeList   ?? [], 'otakudesu', 'anime');
+  const completedAnime= norm(home?.data?.completed?.animeList ?? [], 'otakudesu', 'anime');
+  const movieItems    = norm(movies?.data?.animeList           ?? [], 'samehadaku', 'movie');
+  // donghua: no data wrapper → r.latest_donghua
+  const donghuaItems  = norm(donghuaLatest?.latest_donghua     ?? [], 'donghua', 'donghua');
+  // winbu: has data wrapper → r.data.latest_anime
+  const winbuItems    = norm(winbuHome?.data?.latest_anime     ?? [], 'winbu', 'anime');
+  // animasu: no data wrapper → r.ongoing / r.recent
+  const animasuItems  = norm(animasuHome?.ongoing ?? animasuHome?.recent ?? [], 'animasu', 'anime');
+  // anoboy: no data wrapper → r.anime_list; episode-level items → go to player directly
+  const anoboyItems   = norm(anoboyHome?.anime_list            ?? [], 'anoboy', 'anime', true);
+  // donghub: has data wrapper → r.data.latest / r.data.popular; episode-level items
+  const donghubItems  = norm(
     donghubHome?.data?.latest ?? donghubHome?.data?.popular ?? [],
     'donghub', 'donghua', true,
   );
