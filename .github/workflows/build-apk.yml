@@ -44,13 +44,19 @@ jobs:
           FILE=$(find . -path "*/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt" 2>/dev/null | head -1)
           if [ -n "$FILE" ]; then
             echo "Patching: $FILE"
-            # Fix 1: currentActivity -> reactApplicationContext.currentActivity
-            sed -i 's/\bcurrentActivity\b/reactApplicationContext.currentActivity/g' "$FILE"
-            # Fix 2: runOnUiThread -> UiThreadUtil.runOnUiThread
-            sed -i 's/\brunOnUiThread\b/android.os.Handler(android.os.Looper.getMainLooper()).post/g' "$FILE"
-            # Remove double-prefix if any were already correct
-            sed -i 's/reactApplicationContext\.reactApplicationContext\.currentActivity/reactApplicationContext.currentActivity/g' "$FILE"
-            echo "✅ Patched OK"
+            echo "--- Lines before patch ---"
+            grep -n "currentActivity" "$FILE" | head -10
+
+            # Fix: tambah prefix reactApplicationContext. HANYA pada currentActivity standalone
+            # Jangan ubah 'activity.runOnUiThread' karena itu valid (dipanggil pada Activity var)
+            # Hanya target: baris yang mulai dengan currentActivity atau didahului oleh non-word char
+            perl -i -pe 's/(?<![A-Za-z0-9_\.])currentActivity\b/reactApplicationContext.currentActivity/g' "$FILE"
+            # Hapus double-prefix kalau ada
+            perl -i -pe 's/reactApplicationContext\.reactApplicationContext\.currentActivity/reactApplicationContext.currentActivity/g' "$FILE"
+
+            echo "--- Lines after patch ---"
+            grep -n "currentActivity" "$FILE" | head -10
+            echo "✅ Patched"
           else
             echo "ℹ️ File not found, skipping"
           fi
