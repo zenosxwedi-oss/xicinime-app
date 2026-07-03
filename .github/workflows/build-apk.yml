@@ -39,15 +39,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Patch react-native-google-mobile-ads (New Arch compat)
+      - name: Patch react-native-google-mobile-ads (New Architecture compat)
         run: |
           FILE=$(find . -path "*/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt" 2>/dev/null | head -1)
           if [ -n "$FILE" ]; then
-            perl -i -pe 's/(?<!reactApplicationContext\.)(?<!\w)currentActivity(?!\s*=)/reactApplicationContext.currentActivity/g' "$FILE"
-            perl -i -pe 's/\brunOnUiThread\(/reactApplicationContext.runOnUiQueueThread(/g' "$FILE"
-            echo "✅ Patched: $FILE"
+            echo "Patching: $FILE"
+            # Fix 1: currentActivity -> reactApplicationContext.currentActivity
+            sed -i 's/\bcurrentActivity\b/reactApplicationContext.currentActivity/g' "$FILE"
+            # Fix 2: runOnUiThread -> UiThreadUtil.runOnUiThread
+            sed -i 's/\brunOnUiThread\b/android.os.Handler(android.os.Looper.getMainLooper()).post/g' "$FILE"
+            # Remove double-prefix if any were already correct
+            sed -i 's/reactApplicationContext\.reactApplicationContext\.currentActivity/reactApplicationContext.currentActivity/g' "$FILE"
+            echo "✅ Patched OK"
           else
-            echo "ℹ️ Patch not needed"
+            echo "ℹ️ File not found, skipping"
           fi
 
       - name: Setup JDK 17
