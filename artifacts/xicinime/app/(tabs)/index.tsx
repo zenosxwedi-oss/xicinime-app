@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { HeroBanner } from '@/components/HeroBanner';
 import { SectionRow } from '@/components/SectionRow';
+import { AdBanner } from '@/components/AdBanner';
 import { otakudesu, samehadaku, donghua, winbu, animasu, anoboy, donghub } from '@/services/api';
 import { ContentItem } from '@/types/api';
 
@@ -19,7 +20,6 @@ function norm(
     .filter((i: any) => i?.title && (i?.poster || i?.image || i?.thumbnail))
     .map((i: any) => ({
       id: i.animeId ?? i.id ?? i.slug ?? i.bookId ?? i.title,
-      // donghub titles contain tabs like "Title\t\t\t\tTitle Episode N"
       title: String(i.title ?? '').split('\t')[0].trim(),
       poster: (i.poster ?? i.image ?? i.thumbnail ?? '').split('\t')[0].trim(),
       source,
@@ -70,22 +70,13 @@ export default function HomeScreen() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Extract with correct field names per API.
-  // IMPORTANT: some sources have NO "data" wrapper (anoboy, donghua, animasu, nimegami)
-  // while others do (otakudesu, samehadaku, winbu, donghub).
-  // Use ?? fallback: raw?.data?.field ?? raw?.field
   const ongoingAnime  = norm(home?.data?.ongoing?.animeList   ?? [], 'otakudesu', 'anime');
   const completedAnime= norm(home?.data?.completed?.animeList ?? [], 'otakudesu', 'anime');
   const movieItems    = norm(movies?.data?.animeList           ?? [], 'samehadaku', 'movie');
-  // donghua: no data wrapper → r.latest_donghua
   const donghuaItems  = norm(donghuaLatest?.latest_donghua     ?? [], 'donghua', 'donghua');
-  // winbu: has data wrapper → r.data.latest_anime
   const winbuItems    = norm(winbuHome?.data?.latest_anime     ?? [], 'winbu', 'anime');
-  // animasu: no data wrapper → r.ongoing / r.recent
   const animasuItems  = norm(animasuHome?.ongoing ?? animasuHome?.recent ?? [], 'animasu', 'anime');
-  // anoboy: no data wrapper → r.anime_list; episode-level items → go to player directly
   const anoboyItems   = norm(anoboyHome?.anime_list            ?? [], 'anoboy', 'anime', true);
-  // donghub: has data wrapper → r.data.latest / r.data.popular; episode-level items
   const donghubItems  = norm(
     donghubHome?.data?.latest ?? donghubHome?.data?.popular ?? [],
     'donghub', 'donghua', true,
@@ -113,6 +104,9 @@ export default function HomeScreen() {
       </View>
 
       {heroItems.length > 0 && <HeroBanner items={heroItems} />}
+
+      {/* Banner iklan Google AdMob setelah hero */}
+      <AdBanner />
 
       <View style={styles.sections}>
         <SectionRow title="🔥 Anime Terbaru" data={ongoingAnime} isLoading={l1} />

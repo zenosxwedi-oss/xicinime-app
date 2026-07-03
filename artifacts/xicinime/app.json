@@ -1,8 +1,8 @@
-  {
+{
   "expo": {
     "name": "Xicinime",
     "slug": "xicinime",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "xicinime",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.xicinime.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0A0A0A"
@@ -35,7 +35,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3848627834535677~3573045936"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
