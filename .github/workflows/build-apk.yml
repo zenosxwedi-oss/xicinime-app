@@ -77,7 +77,7 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
 
-      - name: Find APK and report size
+      - name: Find APK
         run: |
           APK=$(find artifacts/xicinime/android/app/build/outputs/apk/debug -name "*.apk" | head -1)
           SIZE=$(du -sh "$APK" | cut -f1)
@@ -93,4 +93,4 @@ jobs:
           retention-days: 60
 
       - name: Job summary
-        run: echo "### ✅ APK siap — ${{ env.APK_SIZE }}" >> $GITHUB_STEP_SUMMARY
+        run: echo "### ✅ APK ${{ env.APK_SIZE }} — arm64+arm32, Old Arch" >> $GITHUB_STEP_SUMMARY

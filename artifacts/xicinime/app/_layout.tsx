@@ -24,21 +24,38 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0A0A0A' } }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#0A0A0A' },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="detail" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="episode" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen
+          name="detail"
+          options={{ headerShown: false, animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="episode"
+          options={{ headerShown: false, animation: 'slide_from_bottom' }}
+        />
       </Stack>
     </>
   );
 }
 
 export default function RootLayout() {
-  // Load font di background — tidak blokir render sama sekali
-  useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+  // Font load di background — tidak pernah blokir render
+  useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   useEffect(() => {
-    // Jaminan: splash PASTI sembunyi setelah 2.5 detik apapun yang terjadi
+    // Jaminan absolut: splash PASTI hilang setelah 2.5 detik
+    // Ini mencegah stuck logo apapun penyebabnya (native crash, init lambat, dll)
     const fallback = setTimeout(() => {
       SplashScreen.hideAsync().catch(() => {});
     }, 2500);
