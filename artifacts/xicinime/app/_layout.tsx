@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,15 +14,9 @@ import {
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
-// PERBAIKAN: SplashScreen.preventAutoHideAsync() dihapus karena menyebabkan
-// app stuck di logo ketika font gagal load atau KeyboardProvider crash
-
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 5 * 60 * 1000,
-    },
+    queries: { retry: 2, staleTime: 5 * 60 * 1000 },
   },
 });
 
@@ -31,33 +26,24 @@ function RootLayoutNav() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0A0A0A' } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="detail"
-          options={{
-            headerShown: false,
-            animation: 'slide_from_right',
-          }}
-        />
-        <Stack.Screen
-          name="episode"
-          options={{
-            headerShown: false,
-            animation: 'slide_from_bottom',
-          }}
-        />
+        <Stack.Screen name="detail" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="episode" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
       </Stack>
     </>
   );
 }
 
 export default function RootLayout() {
-  // Load font di background — tidak blokir rendering sama sekali
-  useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  // Load font di background — tidak blokir render sama sekali
+  useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+
+  useEffect(() => {
+    // Jaminan: splash PASTI sembunyi setelah 2.5 detik apapun yang terjadi
+    const fallback = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 2500);
+    return () => clearTimeout(fallback);
+  }, []);
 
   return (
     <SafeAreaProvider>

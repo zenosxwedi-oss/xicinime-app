@@ -39,28 +39,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Patch react-native-google-mobile-ads (New Architecture compat)
-        run: |
-          FILE=$(find . -path "*/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt" 2>/dev/null | head -1)
-          if [ -n "$FILE" ]; then
-            echo "Patching: $FILE"
-            echo "--- Lines before patch ---"
-            grep -n "currentActivity" "$FILE" | head -10
-
-            # Fix: tambah prefix reactApplicationContext. HANYA pada currentActivity standalone
-            # Jangan ubah 'activity.runOnUiThread' karena itu valid (dipanggil pada Activity var)
-            # Hanya target: baris yang mulai dengan currentActivity atau didahului oleh non-word char
-            perl -i -pe 's/(?<![A-Za-z0-9_\.])currentActivity\b/reactApplicationContext.currentActivity/g' "$FILE"
-            # Hapus double-prefix kalau ada
-            perl -i -pe 's/reactApplicationContext\.reactApplicationContext\.currentActivity/reactApplicationContext.currentActivity/g' "$FILE"
-
-            echo "--- Lines after patch ---"
-            grep -n "currentActivity" "$FILE" | head -10
-            echo "✅ Patched"
-          else
-            echo "ℹ️ File not found, skipping"
-          fi
-
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
@@ -115,4 +93,4 @@ jobs:
           retention-days: 60
 
       - name: Job summary
-        run: echo "### ✅ APK arm64+arm32 selesai — ${{ env.APK_SIZE }}" >> $GITHUB_STEP_SUMMARY
+        run: echo "### ✅ APK siap — ${{ env.APK_SIZE }}" >> $GITHUB_STEP_SUMMARY
