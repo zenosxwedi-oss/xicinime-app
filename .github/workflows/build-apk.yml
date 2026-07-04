@@ -40,21 +40,18 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # react-native-google-mobile-ads@14.x punya bug di RN 0.81:
-      # currentActivity bukan lagi property langsung, harus via reactApplicationContext
-      # Patch ini fix HANYA currentActivity — tidak ubah apapun lain
+      # currentActivity bukan lagi property langsung, harus via reactApplicationContext.
+      # Patch ini HANYA ganti currentActivity — tidak sentuh yang lain.
       - name: Patch google-mobile-ads (RN 0.81 compat)
         run: |
           FILE=$(find . -path "*/react-native-google-mobile-ads/android/src/main/java/io/invertase/googlemobileads/ReactNativeGoogleMobileAdsModule.kt" 2>/dev/null | head -1)
           if [ -n "$FILE" ]; then
             echo "Patching: $FILE"
-            # Tambah prefix reactApplicationContext. pada currentActivity yang berdiri sendiri
-            # Regex: tidak didahului huruf/angka/_ atau titik (supaya activity.runOnUiThread tidak tersentuh)
             perl -i -pe 's/(?<![a-zA-Z0-9_\.])currentActivity/reactApplicationContext.currentActivity/g' "$FILE"
-            # Hapus double-prefix kalau ada
             perl -i -pe 's/reactApplicationContext\.reactApplicationContext\./reactApplicationContext./g' "$FILE"
-            echo "Setelah patch:"
+            echo "Baris currentActivity setelah patch:"
             grep -n "currentActivity" "$FILE"
-            echo "✅ OK"
+            echo "✅ Patch selesai"
           else
             echo "File tidak ditemukan, skip"
           fi
@@ -74,15 +71,17 @@ jobs:
         env:
           EXPO_NO_DOCTOR: 1
 
+      # Cache Gradle SETELAH prebuild — key pakai pnpm-lock.yaml (stabil)
+      # android/ di-generate oleh prebuild, tidak bisa dijadikan hash key yang reliabel
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            artifacts/xicinime/android/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('artifacts/xicinime/android/**/*.gradle*') }}
-          restore-keys: ${{ runner.os }}-gradle-
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('artifacts/xicinime/app.json') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       - name: Make gradlew executable
         working-directory: artifacts/xicinime/android
